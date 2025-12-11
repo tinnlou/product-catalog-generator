@@ -393,7 +393,7 @@ function M8DistributorTemplateComponent({
                 key={wire.pin} 
                 style={[
                   distributorStyles.wireColorRow,
-                  index % 2 === 1 && { backgroundColor: '#f9fafb' },
+                  index % 2 === 1 ? { backgroundColor: '#f9fafb' } : {},
                 ]}
               >
                 <Text style={[distributorStyles.wireColorCell, { width: 50, fontWeight: 'bold' }]}>

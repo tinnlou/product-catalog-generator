@@ -361,7 +361,7 @@ export function PartNumberTable({ partNumbers, columns }: PartNumberTableProps) 
           key={pn.id} 
           style={[
             baseStyles.partNumberRow,
-            index % 2 === 1 && { backgroundColor: '#f9fafb' },
+            index % 2 === 1 ? { backgroundColor: '#f9fafb' } : {},
           ]}
         >
           {cols.map((col) => {
