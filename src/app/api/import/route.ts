@@ -4,7 +4,7 @@ import { ProductStatus } from '@prisma/client';
 
 // 解析CSV
 function parseCSV(csv: string): { headers: string[]; rows: string[][] } {
-  const lines = csv.split('\n').filter(line => line.trim() && !line.startsWith('说明'));
+  const lines = csv.split('\n').filter(line => line.trim() && !line.startsWith('#') && !line.startsWith('说明'));
   if (lines.length === 0) return { headers: [], rows: [] };
 
   const parseRow = (line: string): string[] => {
@@ -62,7 +62,6 @@ export async function POST(request: Request) {
 
     if (type === 'series') {
       // 导入系列
-      // 列: 系列代码, 系列名称, 描述, 模板ID, 排序
       const codeIdx = headers.findIndex(h => h.includes('代码'));
       const nameIdx = headers.findIndex(h => h.includes('名称'));
       const descIdx = headers.findIndex(h => h.includes('描述'));
@@ -72,8 +71,8 @@ export async function POST(request: Request) {
       for (const row of rows) {
         if (row.length < 2) continue;
         
-        const code = row[codeIdx] || row[0];
-        const name = row[nameIdx] || row[1];
+        const code = row[codeIdx >= 0 ? codeIdx : 0];
+        const name = row[nameIdx >= 0 ? nameIdx : 1];
         
         if (!code || !name) {
           results.errors.push(`跳过空行`);
@@ -89,9 +88,9 @@ export async function POST(request: Request) {
                 where: { code },
                 data: {
                   name,
-                  description: row[descIdx] || null,
-                  templateId: row[templateIdx] || 'layout-m8-standard',
-                  sortOrder: parseInt(row[sortIdx]) || 0,
+                  description: row[descIdx >= 0 ? descIdx : 2] || null,
+                  templateId: row[templateIdx >= 0 ? templateIdx : 3] || 'layout-m8-standard',
+                  sortOrder: parseInt(row[sortIdx >= 0 ? sortIdx : 4]) || 0,
                 },
               });
               results.updated++;
@@ -103,10 +102,10 @@ export async function POST(request: Request) {
               data: {
                 code,
                 name,
-                description: row[descIdx] || null,
-                templateId: row[templateIdx] || 'layout-m8-standard',
+                description: row[descIdx >= 0 ? descIdx : 2] || null,
+                templateId: row[templateIdx >= 0 ? templateIdx : 3] || 'layout-m8-standard',
                 schemaDefinition: { fields: [], groups: [] },
-                sortOrder: parseInt(row[sortIdx]) || 0,
+                sortOrder: parseInt(row[sortIdx >= 0 ? sortIdx : 4]) || 0,
                 isActive: true,
               },
             });
@@ -118,13 +117,16 @@ export async function POST(request: Request) {
       }
     } else {
       // 导入产品
-      // 列: SKU, 产品名称, 系列代码, 描述, 状态, 规格参数(JSON)
-      const skuIdx = headers.findIndex(h => h.includes('SKU'));
-      const nameIdx = headers.findIndex(h => h.includes('产品名称') || h.includes('名称'));
-      const seriesIdx = headers.findIndex(h => h.includes('系列代码') || h.includes('系列'));
-      const descIdx = headers.findIndex(h => h.includes('描述'));
-      const statusIdx = headers.findIndex(h => h.includes('状态'));
-      const specsIdx = headers.findIndex(h => h.includes('规格') || h.includes('JSON'));
+      // 基础列: SKU, 产品名称, 系列代码, 描述, 状态
+      // 之后的列都是动态规格字段
+      const skuIdx = headers.findIndex(h => h === 'SKU' || h.includes('SKU'));
+      const nameIdx = headers.findIndex(h => h === '产品名称' || h.includes('产品名称'));
+      const seriesIdx = headers.findIndex(h => h === '系列代码' || h.includes('系列'));
+      const descIdx = headers.findIndex(h => h === '描述');
+      const statusIdx = headers.findIndex(h => h === '状态');
+
+      // 基础列索引（用于识别动态字段）
+      const baseColumnIndices = new Set([skuIdx, nameIdx, seriesIdx, descIdx, statusIdx].filter(i => i >= 0));
 
       for (const row of rows) {
         if (row.length < 3) continue;
@@ -146,14 +148,41 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // 解析规格参数
-          let specifications = {};
-          const specsStr = row[specsIdx >= 0 ? specsIdx : 5];
-          if (specsStr) {
-            try {
-              specifications = JSON.parse(specsStr);
-            } catch {
-              // 忽略JSON解析错误
+          // 获取系列的字段定义
+          const schemaFields = (series.schemaDefinition as { fields?: { key: string; label: string; type: string }[] })?.fields || [];
+          
+          // 构建字段标签到key的映射
+          const labelToKey: Record<string, { key: string; type: string }> = {};
+          for (const field of schemaFields) {
+            labelToKey[field.label] = { key: field.key, type: field.type };
+          }
+
+          // 解析规格参数 - 从动态列中读取
+          const specifications: Record<string, any> = {};
+          
+          for (let i = 0; i < headers.length; i++) {
+            if (baseColumnIndices.has(i)) continue; // 跳过基础列
+            
+            const header = headers[i];
+            const value = row[i];
+            
+            if (!header || !value) continue;
+            
+            // 查找对应的字段定义
+            const fieldDef = labelToKey[header];
+            if (fieldDef) {
+              // 使用字段key作为键
+              if (fieldDef.type === 'number') {
+                specifications[fieldDef.key] = parseFloat(value) || 0;
+              } else if (fieldDef.type === 'boolean') {
+                specifications[fieldDef.key] = value.toLowerCase() === 'true' || value === '是' || value === '1';
+              } else {
+                specifications[fieldDef.key] = value;
+              }
+            } else {
+              // 如果没有找到字段定义，使用列名作为键（转为下划线格式）
+              const key = header.replace(/\s+/g, '_').toLowerCase();
+              specifications[key] = value;
             }
           }
 

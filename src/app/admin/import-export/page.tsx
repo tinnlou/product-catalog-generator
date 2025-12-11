@@ -1,8 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, FileDown } from 'lucide-react';
+
+interface Series {
+  id: string;
+  name: string;
+  code: string;
+}
 
 export default function ImportExportPage() {
   const [exporting, setExporting] = useState(false);
@@ -11,6 +17,29 @@ export default function ImportExportPage() {
   const [importMode, setImportMode] = useState<'skip' | 'update'>('skip');
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState('');
+  
+  // 系列选择
+  const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string>('');
+  const [loadingSeries, setLoadingSeries] = useState(true);
+
+  // 获取系列列表
+  useEffect(() => {
+    const fetchSeries = async () => {
+      try {
+        const res = await fetch('/api/series');
+        const json = await res.json();
+        if (json.success) {
+          setSeriesList(json.data);
+        }
+      } catch (err) {
+        console.error('获取系列失败:', err);
+      } finally {
+        setLoadingSeries(false);
+      }
+    };
+    fetchSeries();
+  }, []);
 
   // 导出数据
   const handleExport = async (type: 'products' | 'series') => {
@@ -42,17 +71,28 @@ export default function ImportExportPage() {
   // 下载模板
   const handleDownloadTemplate = async (type: 'products' | 'series') => {
     try {
-      const res = await fetch(`/api/template?type=${type}`);
+      let url = `/api/template?type=${type}`;
+      if (type === 'products' && selectedSeriesId) {
+        url += `&seriesId=${selectedSeriesId}`;
+      }
+      
+      const res = await fetch(url);
       if (res.ok) {
         const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+        const downloadUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `${type}-template.csv`;
+        a.href = downloadUrl;
+        
+        const selectedSeries = seriesList.find(s => s.id === selectedSeriesId);
+        const filename = selectedSeries 
+          ? `products-template-${selectedSeries.code}.csv`
+          : `${type}-template.csv`;
+        a.download = filename;
+        
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(downloadUrl);
       }
     } catch (err) {
       setError('下载模板失败');
@@ -224,15 +264,6 @@ export default function ImportExportPage() {
             </div>
           </div>
 
-          {/* 下载模板按钮 */}
-          <button
-            onClick={() => handleDownloadTemplate(importType)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 mb-3 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            下载{importType === 'products' ? '产品' : '系列'}导入模板
-          </button>
-
           {/* 上传文件 */}
           <label className="block">
             <input type="file" accept=".csv" onChange={handleImport} disabled={importing} className="hidden" />
@@ -252,6 +283,72 @@ export default function ImportExportPage() {
               )}
             </div>
           </label>
+        </div>
+      </div>
+
+      {/* 下载模板卡片 */}
+      <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <FileDown className="w-5 h-5 text-purple-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-slate-900">下载导入模板</h2>
+        </div>
+
+        <p className="text-slate-600 text-sm mb-4">
+          下载模板文件，按格式填写后导入。产品模板会包含所选系列的自定义字段。
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* 产品模板 */}
+          <div className="border border-slate-200 rounded-lg p-4">
+            <h3 className="font-medium text-slate-900 mb-3">产品模板</h3>
+            
+            {/* 系列选择 */}
+            <div className="mb-3">
+              <label className="block text-sm text-slate-600 mb-1">选择系列（可选）：</label>
+              <select
+                value={selectedSeriesId}
+                onChange={(e) => setSelectedSeriesId(e.target.value)}
+                disabled={loadingSeries}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">通用模板（无自定义字段）</option>
+                {seriesList.map(series => (
+                  <option key={series.id} value={series.id}>
+                    {series.name} ({series.code})
+                  </option>
+                ))}
+              </select>
+              {selectedSeriesId && (
+                <p className="text-xs text-purple-600 mt-1">
+                  ✓ 模板将包含该系列配置的自定义字段
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={() => handleDownloadTemplate('products')}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-purple-600 border border-purple-200 hover:bg-purple-50 rounded-lg transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              下载产品模板
+            </button>
+          </div>
+
+          {/* 系列模板 */}
+          <div className="border border-slate-200 rounded-lg p-4">
+            <h3 className="font-medium text-slate-900 mb-3">系列模板</h3>
+            <p className="text-sm text-slate-500 mb-3">包含系列的基本信息字段</p>
+            
+            <button
+              onClick={() => handleDownloadTemplate('series')}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-purple-600 border border-purple-200 hover:bg-purple-50 rounded-lg transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              下载系列模板
+            </button>
+          </div>
         </div>
       </div>
 
@@ -287,15 +384,15 @@ export default function ImportExportPage() {
       <div className="mt-6 bg-slate-50 rounded-xl p-6">
         <h3 className="font-semibold text-slate-900 mb-3">📋 使用说明</h3>
         <div className="text-sm text-slate-600 space-y-2">
-          <p><strong>1. 导出数据</strong>：点击导出按钮，会下载 CSV 文件，可用 Excel 打开编辑</p>
-          <p><strong>2. 下载模板</strong>：首次导入前，建议先下载模板查看格式要求</p>
-          <p><strong>3. 编辑表格</strong>：用 Excel 编辑表格，保存为 CSV 格式（逗号分隔）</p>
-          <p><strong>4. 导入数据</strong>：选择类型和重复处理方式，上传 CSV 文件</p>
+          <p><strong>1. 下载模板</strong>：选择要导入的系列，下载对应模板（包含该系列的自定义字段）</p>
+          <p><strong>2. 编辑表格</strong>：用 Excel 打开模板，填写产品数据</p>
+          <p><strong>3. 保存文件</strong>：保存为 CSV 格式（逗号分隔，UTF-8编码）</p>
+          <p><strong>4. 上传导入</strong>：选择导入类型和重复处理方式，上传 CSV 文件</p>
         </div>
         
         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-sm text-amber-700">
-            💡 <strong>提示</strong>：导入产品前，请先确保对应的系列已存在。可以先导入系列，再导入产品。
+            💡 <strong>提示</strong>：导入产品前，请先确保对应的系列已存在。模板中的字段列会自动匹配系列的配置。
           </p>
         </div>
       </div>
