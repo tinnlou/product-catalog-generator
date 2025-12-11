@@ -214,6 +214,7 @@ export interface ProductWithRelations {
     code: string;
     templateId: string;
     schemaDefinition: SeriesSchemaDefinition;
+    layoutConfig?: LayoutConfig;
   };
   specifications: ProductSpecifications;
   circuitDiagrams?: CircuitDiagrams;
