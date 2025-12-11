@@ -211,10 +211,10 @@ function FieldInput({ field, value, onChange, error, disabled }: FieldInputProps
               disabled={disabled}
               className={baseInputClass}
             />
-            {value && (
+            {typeof value === 'string' && value && (
               <div className="relative w-32 h-32 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                 <img
-                  src={value as string}
+                  src={value}
                   alt="Preview"
                   className="w-full h-full object-contain"
                   onError={(e) => {
@@ -223,7 +223,7 @@ function FieldInput({ field, value, onChange, error, disabled }: FieldInputProps
                 />
               </div>
             )}
-            {!value && (
+            {(!value || typeof value !== 'string') && (
               <div className="flex items-center justify-center w-32 h-32 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
                 <ImageIcon className="w-8 h-8 text-slate-300" />
               </div>
