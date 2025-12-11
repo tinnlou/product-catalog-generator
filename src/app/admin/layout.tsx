@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  User
+  User,
+  FileJson
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -20,6 +21,7 @@ const navigation = [
   { name: '产品管理', href: '/admin/products', icon: Package },
   { name: '系列管理', href: '/admin/series', icon: Layers },
   { name: 'PDF生成', href: '/admin/generate', icon: FileText },
+  { name: '导入导出', href: '/admin/import-export', icon: FileJson },
   { name: '系统设置', href: '/admin/settings', icon: Settings },
 ];
 

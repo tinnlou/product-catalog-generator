@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Settings2, Plus, Trash2, GripVertical, Loader2, CheckCircle } from 'lucide-react';
 
 interface SchemaField {
+  id?: string; // 用于React渲染的唯一标识
   key: string;
   label: string;
   type: string;
@@ -65,7 +66,12 @@ export default function SchemaConfigPage({ params }: { params: { id: string } })
           setSeries(json.data);
           const schema = json.data.schemaDefinition;
           if (schema?.fields) {
-            setFields(schema.fields);
+            // 为每个字段添加唯一id
+            const fieldsWithId = schema.fields.map((f: SchemaField, i: number) => ({
+              ...f,
+              id: f.id || `existing-${i}-${Date.now()}`,
+            }));
+            setFields(fieldsWithId);
           }
           if (schema?.groups) {
             setGroups(schema.groups);
@@ -84,14 +90,15 @@ export default function SchemaConfigPage({ params }: { params: { id: string } })
   }, [params.id]);
 
   const addField = () => {
-    const newField: SchemaField = {
-      key: `field_${Date.now()}`,
+    const newField: SchemaField & { id: string } = {
+      id: `id_${Date.now()}`,
+      key: '',
       label: '新字段',
       type: 'text',
       group: groups[0]?.key || 'electrical',
       required: false,
     };
-    setFields([...fields, newField]);
+    setFields([...fields, newField as SchemaField]);
   };
 
   const removeField = (index: number) => {
@@ -237,7 +244,7 @@ export default function SchemaConfigPage({ params }: { params: { id: string } })
             </div>
           ) : (
             fields.map((field, index) => (
-              <div key={field.key + index} className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-slate-50">
+              <div key={field.id || `field-${index}`} className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-slate-50">
                 <div className="col-span-1">
                   <GripVertical className="w-4 h-4 text-slate-400 cursor-grab" />
                 </div>
