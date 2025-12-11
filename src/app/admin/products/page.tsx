@@ -1,88 +1,88 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
   Search, 
-  Filter, 
-  MoreVertical, 
   Edit, 
   Copy, 
   Trash2,
-  FileText,
   Eye,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
-// 示例产品数据
-const products = [
-  {
-    id: '1',
-    name: 'M8 Compact 4 Ports 标准型',
-    sku: 'M8C4-STD-001',
-    series: 'M8 Compact 4/6 Ports',
-    status: 'PUBLISHED',
-    partNumbers: 3,
-    updatedAt: '2024-12-10',
-  },
-  {
-    id: '2',
-    name: 'M8 Compact 6 Ports 标准型',
-    sku: 'M8C6-STD-001',
-    series: 'M8 Compact 4/6 Ports',
-    status: 'PUBLISHED',
-    partNumbers: 3,
-    updatedAt: '2024-12-09',
-  },
-  {
-    id: '3',
-    name: 'M8 Distributor 8 Ports PVC',
-    sku: 'M8D8-PVC-001',
-    series: 'M8 Distributor 8/12 Ports',
-    status: 'DRAFT',
-    partNumbers: 2,
-    updatedAt: '2024-12-08',
-  },
-  {
-    id: '4',
-    name: 'M8 Distributor 12 Ports PUR',
-    sku: 'M8D12-PUR-001',
-    series: 'M8 Distributor 8/12 Ports',
-    status: 'REVIEW',
-    partNumbers: 4,
-    updatedAt: '2024-12-07',
-  },
-];
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  seriesName: string;
+  status: string;
+  partNumberCount: number;
+  updatedAt: string;
+}
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   DRAFT: { label: '草稿', color: 'bg-slate-100 text-slate-700', icon: Clock },
   REVIEW: { label: '审核中', color: 'bg-yellow-100 text-yellow-700', icon: AlertCircle },
   PUBLISHED: { label: '已发布', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  APPROVED: { label: '已批准', color: 'bg-blue-100 text-blue-700', icon: CheckCircle },
   ARCHIVED: { label: '已归档', color: 'bg-slate-100 text-slate-500', icon: Clock },
 };
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSeries, setSelectedSeries] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSeries = selectedSeries === 'all' || product.series === selectedSeries;
-    const matchesStatus = selectedStatus === 'all' || product.status === selectedStatus;
-    return matchesSearch && matchesSeries && matchesStatus;
-  });
+  // 获取产品数据
+  const fetchProducts = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('search', searchQuery);
+      if (selectedStatus !== 'all') params.set('status', selectedStatus);
+      
+      const res = await fetch(`/api/products?${params}`);
+      const json = await res.json();
+      
+      if (json.success) {
+        setProducts(json.data);
+      } else {
+        setError(json.error || '获取数据失败');
+      }
+    } catch (err) {
+      setError('网络错误，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [selectedStatus]);
+
+  // 搜索防抖
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const toggleSelectAll = () => {
-    if (selectedProducts.length === filteredProducts.length) {
+    if (selectedProducts.length === products.length) {
       setSelectedProducts([]);
     } else {
-      setSelectedProducts(filteredProducts.map(p => p.id));
+      setSelectedProducts(products.map(p => p.id));
     }
   };
 
@@ -92,6 +92,26 @@ export default function ProductsPage() {
     } else {
       setSelectedProducts([...selectedProducts, id]);
     }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定要删除此产品吗？')) return;
+    
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        fetchProducts();
+      } else {
+        alert('删除失败: ' + json.error);
+      }
+    } catch (err) {
+      alert('删除失败，请重试');
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('zh-CN');
   };
 
   return (
@@ -126,17 +146,6 @@ export default function ProductsPage() {
             />
           </div>
 
-          {/* 系列筛选 */}
-          <select
-            value={selectedSeries}
-            onChange={(e) => setSelectedSeries(e.target.value)}
-            className="px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="all">所有系列</option>
-            <option value="M8 Compact 4/6 Ports">M8 Compact 4/6 Ports</option>
-            <option value="M8 Distributor 8/12 Ports">M8 Distributor 8/12 Ports</option>
-          </select>
-
           {/* 状态筛选 */}
           <select
             value={selectedStatus}
@@ -148,6 +157,16 @@ export default function ProductsPage() {
             <option value="REVIEW">审核中</option>
             <option value="PUBLISHED">已发布</option>
           </select>
+
+          {/* 刷新按钮 */}
+          <button
+            onClick={fetchProducts}
+            disabled={loading}
+            className="px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            刷新
+          </button>
         </div>
 
         {/* 批量操作 */}
@@ -156,9 +175,6 @@ export default function ProductsPage() {
             <span className="text-sm text-slate-600">
               已选择 {selectedProducts.length} 个产品
             </span>
-            <button className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors">
-              批量编辑
-            </button>
             <button className="px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition-colors">
               生成PDF
             </button>
@@ -169,100 +185,27 @@ export default function ProductsPage() {
         )}
       </div>
 
+      {/* 错误提示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
       {/* 产品列表 */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="w-12 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                  />
-                </th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">产品名称</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">SKU</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">系列</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">型号数</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">状态</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">更新时间</th>
-                <th className="w-20 px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map((product) => {
-                const status = statusConfig[product.status as keyof typeof statusConfig];
-                const StatusIcon = status.icon;
-                return (
-                  <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => toggleSelect(product.id)}
-                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/products/${product.id}`} className="font-medium text-slate-900 hover:text-blue-600">
-                        {product.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-slate-600 font-mono bg-slate-100 px-2 py-0.5 rounded">
-                        {product.sku}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{product.series}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{product.partNumbers}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500">{product.updatedAt}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Link
-                          href={`/admin/products/${product.id}`}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="编辑"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="预览PDF"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="复制"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 空状态 */}
-        {filteredProducts.length === 0 && (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="ml-2 text-slate-600">加载中...</span>
+          </div>
+        ) : products.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8 text-slate-400" />
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-1">没有找到产品</h3>
-            <p className="text-slate-500 mb-4">尝试调整搜索条件或筛选器</p>
+            <p className="text-slate-500 mb-4">尝试调整搜索条件或创建新产品</p>
             <Link
               href="/admin/products/new"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
@@ -271,26 +214,102 @@ export default function ProductsPage() {
               新建产品
             </Link>
           </div>
-        )}
-
-        {/* 分页 */}
-        {filteredProducts.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between">
-            <p className="text-sm text-slate-600">
-              显示 1-{filteredProducts.length} 共 {filteredProducts.length} 个产品
-            </p>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50" disabled>
-                上一页
-              </button>
-              <button className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50" disabled>
-                下一页
-              </button>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="w-12 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.length === products.length && products.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                      />
+                    </th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">产品名称</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">SKU</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">系列</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">型号数</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">状态</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">更新时间</th>
+                    <th className="w-28 px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {products.map((product) => {
+                    const status = statusConfig[product.status] || statusConfig.DRAFT;
+                    const StatusIcon = status.icon;
+                    return (
+                      <tr key={product.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.includes(product.id)}
+                            onChange={() => toggleSelect(product.id)}
+                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link href={`/admin/products/${product.id}`} className="font-medium text-slate-900 hover:text-blue-600">
+                            {product.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-sm text-slate-600 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                            {product.sku}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{product.seriesName}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{product.partNumberCount}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
+                            <StatusIcon className="w-3 h-3" />
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-500">{formatDate(product.updatedAt)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Link
+                              href={`/admin/products/${product.id}`}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="编辑"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                            <button
+                              className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="预览PDF"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="删除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
+
+            {/* 分页信息 */}
+            <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between">
+              <p className="text-sm text-slate-600">
+                共 {products.length} 个产品
+              </p>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 }
-
