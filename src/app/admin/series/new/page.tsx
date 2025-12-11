@@ -3,30 +3,76 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Layers } from 'lucide-react';
+import { ArrowLeft, Save, Layers, Loader2 } from 'lucide-react';
 
 const templateOptions = [
   { id: 'layout-m8-standard', name: 'M8 标准布局', description: '适用于M8 Compact系列' },
   { id: 'layout-m8-distributor', name: 'M8 分线器布局', description: '适用于带线缆的分线器' },
 ];
 
+// 默认Schema结构
+const defaultSchema = {
+  fields: [
+    { key: 'voltage_rating', label: '额定电源', type: 'text', group: 'electrical', required: true },
+    { key: 'working_voltage', label: '工作电压', type: 'text', group: 'electrical', required: true },
+    { key: 'current_load', label: '电流负载', type: 'number', unit: 'A', group: 'electrical', required: true },
+    { key: 'ip_rating', label: '防护等级', type: 'text', group: 'physical', required: false },
+  ],
+  groups: [
+    { key: 'electrical', label: '电气参数', order: 1 },
+    { key: 'physical', label: '物理参数', order: 2 },
+  ],
+};
+
 export default function NewSeriesPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     description: '',
-    templateId: '',
+    templateId: 'layout-m8-standard',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (!formData.name || !formData.code || !formData.templateId) {
+      setError('请填写所有必填项');
+      return;
+    }
+
     setSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    alert('系列创建成功！（演示模式）');
-    setSaving(false);
-    router.push('/admin/series');
+
+    try {
+      const res = await fetch('/api/series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          code: formData.code,
+          description: formData.description,
+          templateId: formData.templateId,
+          schemaDefinition: defaultSchema,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        // 跳转到Schema配置页面
+        router.push(`/admin/series/${json.data.id}/schema`);
+      } else {
+        setError(json.error || '创建失败');
+      }
+    } catch (err) {
+      setError('创建失败，请重试');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -50,6 +96,13 @@ export default function NewSeriesPage() {
           <p className="text-slate-600">创建新的产品系列并配置字段结构</p>
         </div>
       </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* 表单 */}
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -133,7 +186,7 @@ export default function NewSeriesPage() {
         {/* 提示 */}
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <p className="text-sm text-purple-700">
-            💡 创建系列后，您需要在"配置字段"中设置该系列产品的属性结构（如电压、电流、端口数等）。
+            💡 创建系列后，您将进入"配置字段"页面，设置该系列产品的属性结构（如电压、电流、端口数等）。
           </p>
         </div>
 
@@ -150,12 +203,20 @@ export default function NewSeriesPage() {
             disabled={saving}
             className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-medium rounded-lg transition-colors"
           >
-            <Save className="w-4 h-4" />
-            {saving ? '创建中...' : '创建系列'}
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                创建中...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                创建系列
+              </>
+            )}
           </button>
         </div>
       </form>
     </div>
   );
 }
-

@@ -1,19 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Package } from 'lucide-react';
+import { ArrowLeft, Save, Package, Loader2 } from 'lucide-react';
 
-// 示例系列数据
-const seriesList = [
-  { id: '1', name: 'M8 Compact 4/6 Ports', code: 'M8-COMPACT-4-6' },
-  { id: '2', name: 'M8 Distributor 8/12 Ports', code: 'M8-DISTRIBUTOR-8-12' },
-];
+interface Series {
+  id: string;
+  name: string;
+  code: string;
+}
 
 export default function NewProductPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [error, setError] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
@@ -21,16 +25,61 @@ export default function NewProductPage() {
     description: '',
   });
 
+  // 获取系列列表
+  useEffect(() => {
+    const fetchSeries = async () => {
+      try {
+        const res = await fetch('/api/series');
+        const json = await res.json();
+        if (json.success) {
+          setSeriesList(json.data);
+        }
+      } catch (err) {
+        console.error('获取系列失败:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSeries();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
+    if (!formData.name || !formData.sku || !formData.seriesId) {
+      setError('请填写所有必填项');
+      return;
+    }
+
     setSaving(true);
     
-    // 模拟保存
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    alert('产品创建成功！（演示模式）');
-    setSaving(false);
-    router.push('/admin/products');
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          sku: formData.sku,
+          seriesId: formData.seriesId,
+          description: formData.description,
+          specifications: {},
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        // 创建成功，跳转到编辑页面
+        router.push(`/admin/products/${json.data.id}`);
+      } else {
+        setError(json.error || '创建失败');
+      }
+    } catch (err) {
+      setError('创建失败，请重试');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -54,6 +103,13 @@ export default function NewProductPage() {
           <p className="text-slate-600">填写基本信息创建新产品</p>
         </div>
       </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* 表单 */}
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -93,19 +149,26 @@ export default function NewProductPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">
               所属系列 <span className="text-red-500">*</span>
             </label>
-            <select
-              required
-              value={formData.seriesId}
-              onChange={(e) => setFormData({ ...formData, seriesId: e.target.value })}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">请选择系列...</option>
-              {seriesList.map(series => (
-                <option key={series.id} value={series.id}>
-                  {series.name}
-                </option>
-              ))}
-            </select>
+            {loading ? (
+              <div className="flex items-center gap-2 text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                加载中...
+              </div>
+            ) : (
+              <select
+                required
+                value={formData.seriesId}
+                onChange={(e) => setFormData({ ...formData, seriesId: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">请选择系列...</option>
+                {seriesList.map(series => (
+                  <option key={series.id} value={series.id}>
+                    {series.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <p className="text-sm text-slate-500 mt-1">
               选择系列后，系统会自动加载该系列的规格字段表单
             </p>
@@ -143,15 +206,23 @@ export default function NewProductPage() {
           </Link>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || loading}
             className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
           >
-            <Save className="w-4 h-4" />
-            {saving ? '创建中...' : '创建产品'}
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                创建中...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                创建产品
+              </>
+            )}
           </button>
         </div>
       </form>
     </div>
   );
 }
-
