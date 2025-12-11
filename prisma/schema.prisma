@@ -1,0 +1,408 @@
+// ============================================================================
+// Product Catalog Automation Platform - Prisma Schema
+// 
+// 设计原则：
+// 1. Configuration-Driven: 使用JSONB存储动态属性，避免硬编码
+// 2. Audit Trail: 完整的操作审计日志
+// 3. Flexible Relations: 灵活的资产和型号管理
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 核心实体：产品系列 (Series)
+// ============================================================================
+model Series {
+  id                String    @id @default(cuid())
+  
+  // 基础信息
+  name              String    // 系列名称，如 "M8 Compact 4/6 Ports"
+  code              String    @unique // 系列代码，如 "M8-COMPACT-4-6"
+  description       String?   // 系列描述
+  
+  // 模板配置 - 决定使用哪个React-PDF组件
+  templateId        String    @map("template_id") // 如 "layout-m8-standard", "layout-m12-extended"
+  
+  // 动态Schema定义 - 定义该系列产品应有的字段
+  // 示例结构见下方注释
+  schemaDefinition  Json      @map("schema_definition") @db.JsonB
+  
+  // 布局配置 - 存储PDF布局相关的配置
+  layoutConfig      Json?     @map("layout_config") @db.JsonB
+  
+  // 状态
+  isActive          Boolean   @default(true) @map("is_active")
+  sortOrder         Int       @default(0) @map("sort_order")
+  
+  // 时间戳
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  // 关联
+  products          Product[]
+  
+  @@map("series")
+}
+
+// schemaDefinition JSON 结构示例:
+// {
+//   "fields": [
+//     {
+//       "key": "voltage_rating",
+//       "label": "额定电压",
+//       "type": "select",
+//       "options": ["24V DC/AC", "12V DC"],
+//       "required": true,
+//       "group": "electrical"
+//     },
+//     {
+//       "key": "current_load",
+//       "label": "电流负载",
+//       "type": "number",
+//       "unit": "A",
+//       "required": true,
+//       "group": "electrical"
+//     },
+//     {
+//       "key": "port_count",
+//       "label": "端口数量",
+//       "type": "select",
+//       "options": ["4", "6", "8", "10"],
+//       "required": true,
+//       "group": "physical"
+//     },
+//     {
+//       "key": "ip_rating",
+//       "label": "防护等级",
+//       "type": "text",
+//       "default": "IP67",
+//       "group": "physical"
+//     }
+//   ],
+//   "groups": [
+//     { "key": "electrical", "label": "电气参数", "order": 1 },
+//     { "key": "physical", "label": "物理参数", "order": 2 }
+//   ]
+// }
+
+// ============================================================================
+// 核心实体：产品 (Product)
+// ============================================================================
+model Product {
+  id              String    @id @default(cuid())
+  
+  // 基础信息
+  name            String    // 产品名称
+  sku             String    @unique // 产品SKU
+  description     String?   // 产品描述
+  
+  // 所属系列
+  seriesId        String    @map("series_id")
+  series          Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  
+  // 动态规格 - 根据Series.schemaDefinition存储实际值
+  // 结构与schemaDefinition中定义的字段对应
+  specifications  Json      @db.JsonB
+  
+  // 电路图配置 - 存储不同类型的电路图数据
+  circuitDiagrams Json?     @map("circuit_diagrams") @db.JsonB
+  
+  // 引脚定义
+  pinDefinitions  Json?     @map("pin_definitions") @db.JsonB
+  
+  // 状态
+  status          ProductStatus @default(DRAFT)
+  isActive        Boolean       @default(true) @map("is_active")
+  
+  // 版本控制
+  version         Int       @default(1)
+  publishedAt     DateTime? @map("published_at")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // 关联
+  partNumbers     PartNumber[]
+  assets          ProductAsset[]
+  
+  @@index([seriesId])
+  @@index([status])
+  @@map("products")
+}
+
+// specifications JSON 结构示例 (对应M8 Compact):
+// {
+//   "voltage_rating": "24V DC/AC",
+//   "working_voltage": "16...30V DC",
+//   "current_load": 2,
+//   "total_current": 6,
+//   "port_count": "4",
+//   "ip_rating": "IP67",
+//   "led_indicator": {
+//     "power": "green",
+//     "signal": "yellow"
+//   },
+//   "channel_type": "single"
+// }
+
+// circuitDiagrams JSON 结构示例:
+// {
+//   "npn": {
+//     "assetId": "asset_xxx",
+//     "description": "NPN电路图"
+//   },
+//   "pnp": {
+//     "assetId": "asset_yyy", 
+//     "description": "PNP电路图"
+//   }
+// }
+
+enum ProductStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+// ============================================================================
+// 型号管理：零件号 (PartNumber)
+// ============================================================================
+model PartNumber {
+  id              String    @id @default(cuid())
+  
+  // 所属产品
+  productId       String    @map("product_id")
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // 型号信息
+  partNumber      String    @map("part_number") // 如 "8HT-TB-HBS-4CS,-N-M12"
+  
+  // 变体配置 - 存储该型号的特定配置
+  // 如: {"signal_type": "NPN", "cable_type": "PVC", "cable_length": "3m"}
+  variantConfig   Json      @map("variant_config") @db.JsonB
+  
+  // 分类标签
+  category        String?   // 如 "NPN", "PNP", "NO_LED"
+  
+  // 状态
+  isActive        Boolean   @default(true) @map("is_active")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  @@unique([productId, partNumber])
+  @@index([partNumber])
+  @@map("part_numbers")
+}
+
+// ============================================================================
+// 资产管理：资产 (Asset)
+// ============================================================================
+model Asset {
+  id              String    @id @default(cuid())
+  
+  // 文件信息
+  fileName        String    @map("file_name")
+  fileUrl         String    @map("file_url")
+  fileType        String    @map("file_type") // "image/png", "image/svg+xml", etc.
+  fileSize        Int?      @map("file_size") // 字节
+  
+  // 图片尺寸 (如适用)
+  width           Int?
+  height          Int?
+  
+  // 分类标签 - 灵活的标签系统
+  // 如: ["main_photo", "product_image"]
+  // 或: ["circuit_diagram", "npn"]
+  // 或: ["dimension_drawing", "front_view"]
+  tags            String[]  
+  
+  // 元数据
+  altText         String?   @map("alt_text")
+  description     String?
+  metadata        Json?     @db.JsonB // 存储额外的元数据
+  
+  // 状态
+  isActive        Boolean   @default(true) @map("is_active")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // 关联
+  productAssets   ProductAsset[]
+  
+  @@index([tags])
+  @@map("assets")
+}
+
+// ============================================================================
+// 关联表：产品-资产 (ProductAsset)
+// ============================================================================
+model ProductAsset {
+  id              String    @id @default(cuid())
+  
+  // 关联
+  productId       String    @map("product_id")
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  assetId         String    @map("asset_id")
+  asset           Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  // 在产品中的用途/位置
+  // 如: "main_photo", "circuit_diagram_npn", "dimension_front"
+  usage           String
+  
+  // 显示顺序
+  sortOrder       Int       @default(0) @map("sort_order")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  
+  @@unique([productId, assetId, usage])
+  @@index([productId])
+  @@index([assetId])
+  @@map("product_assets")
+}
+
+// ============================================================================
+// 审计日志：AuditLog
+// ============================================================================
+model AuditLog {
+  id              String    @id @default(cuid())
+  
+  // 操作对象
+  entityType      String    @map("entity_type") // "Product", "Series", "PartNumber", etc.
+  entityId        String    @map("entity_id")
+  
+  // 操作者
+  userId          String?   @map("user_id")
+  userEmail       String?   @map("user_email")
+  userName        String?   @map("user_name")
+  
+  // 操作类型
+  action          AuditAction
+  
+  // 变更内容
+  fieldName       String?   @map("field_name") // 变更的字段名
+  previousValue   Json?     @map("previous_value") @db.JsonB
+  newValue        Json?     @map("new_value") @db.JsonB
+  
+  // 变更摘要 - 人类可读的描述
+  summary         String?
+  
+  // 元数据
+  metadata        Json?     @db.JsonB // IP地址、User-Agent等
+  
+  // 时间戳
+  timestamp       DateTime  @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  PUBLISH
+  UNPUBLISH
+  RESTORE
+  BULK_UPDATE
+}
+
+// ============================================================================
+// 用户管理：User (与Supabase Auth集成)
+// ============================================================================
+model User {
+  id              String    @id // 使用Supabase Auth的user id
+  
+  email           String    @unique
+  name            String?
+  avatarUrl       String?   @map("avatar_url")
+  
+  // 角色
+  role            UserRole  @default(EDITOR)
+  
+  // 状态
+  isActive        Boolean   @default(true) @map("is_active")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN       // 管理员 - 可配置Schema
+  EDITOR      // 编辑 - 可编辑产品
+  REVIEWER    // 审核员 - 可审核发布
+  VIEWER      // 查看者 - 只读
+}
+
+// ============================================================================
+// PDF生成任务：GenerationTask
+// ============================================================================
+model GenerationTask {
+  id              String    @id @default(cuid())
+  
+  // 任务配置
+  taskType        TaskType  @map("task_type")
+  
+  // 要生成的产品/系列
+  targetType      String    @map("target_type") // "product" | "series" | "catalog"
+  targetIds       String[]  @map("target_ids")
+  
+  // 模板配置覆盖
+  templateOverrides Json?   @map("template_overrides") @db.JsonB
+  
+  // 状态
+  status          TaskStatus @default(PENDING)
+  progress        Int       @default(0) // 0-100
+  
+  // 结果
+  outputUrl       String?   @map("output_url")
+  errorMessage    String?   @map("error_message")
+  
+  // 操作者
+  createdBy       String    @map("created_by")
+  
+  // 时间戳
+  createdAt       DateTime  @default(now()) @map("created_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  
+  @@index([status])
+  @@index([createdBy])
+  @@map("generation_tasks")
+}
+
+enum TaskType {
+  SINGLE_PRODUCT
+  SERIES_CATALOG
+  FULL_CATALOG
+  PREVIEW
+}
+
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
