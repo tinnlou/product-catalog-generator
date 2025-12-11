@@ -460,7 +460,7 @@ function M8DistributorTemplateComponent({
           <Text style={baseStyles.noteText}>
             ⚠️ 注意: 所有型号均为无卤素(Halogen-Free)线缆，符合RoHS标准。
             {'\n'}
-            线缆规格: {specs.cable_spec ?? '10×0.25mm²'} | 护套颜色: GRAY 灰色
+            线缆规格: {String(specs.cable_spec ?? '10×0.25mm²')} | 护套颜色: GRAY 灰色
           </Text>
         </View>
       </PageContainer>
