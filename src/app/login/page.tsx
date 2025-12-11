@@ -34,17 +34,22 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!data.success) {
         throw new Error(data.error || '操作失败');
       }
 
       if (isLogin) {
-        // 登录成功，跳转到管理后台
+        // 登录成功，保存用户信息到localStorage
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+        // 跳转到管理后台
         router.push('/admin');
       } else {
         // 注册成功
         setSuccess('注册成功！请检查邮箱完成验证，然后登录。');
         setIsLogin(true);
+        setPassword('');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '发生未知错误');
@@ -73,7 +78,7 @@ export default function LoginPage() {
           {/* 切换标签 */}
           <div className="flex bg-slate-100 rounded-lg p-1 mb-6">
             <button
-              onClick={() => setIsLogin(true)}
+              onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
                 isLogin
                   ? 'bg-white text-slate-900 shadow-sm'
@@ -83,7 +88,7 @@ export default function LoginPage() {
               登录
             </button>
             <button
-              onClick={() => setIsLogin(false)}
+              onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
                 !isLogin
                   ? 'bg-white text-slate-900 shadow-sm'
@@ -203,4 +208,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

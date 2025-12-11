@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Package, 
@@ -10,9 +10,10 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  User
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const navigation = [
   { name: '仪表盘', href: '/admin', icon: LayoutDashboard },
@@ -22,13 +23,48 @@ const navigation = [
   { name: '系统设置', href: '/admin/settings', icon: Settings },
 ];
 
+interface UserInfo {
+  id: string;
+  email: string;
+  name?: string;
+}
+
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<UserInfo | null>(null);
+
+  // 从localStorage读取用户信息
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        // 忽略解析错误
+      }
+    }
+  }, []);
+
+  // 登出
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('user');
+      router.push('/login');
+    } catch (error) {
+      console.error('登出失败:', error);
+    }
+  };
+
+  // 获取用户显示名称
+  const displayName = user?.name || user?.email?.split('@')[0] || '用户';
+  const displayInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -90,21 +126,31 @@ export default function AdminLayout({
         {/* 底部用户信息 */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-white">U</span>
+            <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-sm font-medium text-white">{displayInitial}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">用户</p>
-              <p className="text-xs text-slate-400 truncate">user@example.com</p>
+              <p className="text-sm font-medium text-white truncate">{displayName}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.email || '游客模式'}</p>
             </div>
           </div>
-          <Link
-            href="/"
-            className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="text-sm">退出登录</span>
-          </Link>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm">退出登录</span>
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <User className="w-4 h-4" />
+              <span className="text-sm">登录 / 注册</span>
+            </Link>
+          )}
         </div>
       </aside>
 
@@ -123,6 +169,11 @@ export default function AdminLayout({
           
           {/* 快捷操作 */}
           <div className="flex items-center gap-2">
+            {user && (
+              <span className="text-sm text-slate-500 mr-2">
+                欢迎, {displayName}
+              </span>
+            )}
             <Link
               href="/admin/products/new"
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
@@ -141,4 +192,3 @@ export default function AdminLayout({
     </div>
   );
 }
-
