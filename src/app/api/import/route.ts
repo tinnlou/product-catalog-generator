@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { ProductStatus } from '@prisma/client';
 
 // 解析CSV
 function parseCSV(csv: string): { headers: string[]; rows: string[][] } {
@@ -156,6 +157,13 @@ export async function POST(request: Request) {
             }
           }
 
+          // 解析状态
+          const statusStr = row[statusIdx >= 0 ? statusIdx : 4]?.toUpperCase() || 'DRAFT';
+          const validStatuses = ['DRAFT', 'REVIEW', 'APPROVED', 'PUBLISHED'];
+          const status: ProductStatus = validStatuses.includes(statusStr) 
+            ? (statusStr as ProductStatus) 
+            : ProductStatus.DRAFT;
+
           const existing = await prisma.product.findUnique({ where: { sku } });
 
           if (existing) {
@@ -166,7 +174,7 @@ export async function POST(request: Request) {
                   name,
                   seriesId: series.id,
                   description: row[descIdx >= 0 ? descIdx : 3] || null,
-                  status: row[statusIdx >= 0 ? statusIdx : 4] || 'DRAFT',
+                  status,
                   specifications,
                 },
               });
@@ -181,7 +189,7 @@ export async function POST(request: Request) {
                 name,
                 seriesId: series.id,
                 description: row[descIdx >= 0 ? descIdx : 3] || null,
-                status: row[statusIdx >= 0 ? statusIdx : 4] || 'DRAFT',
+                status,
                 specifications,
                 isActive: true,
               },
