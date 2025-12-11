@@ -82,8 +82,8 @@ export async function PUT(
         entityId: product.id,
         action: 'UPDATE',
         summary: `更新产品: ${product.name}`,
-        previousValue: oldProduct?.specifications,
-        newValue: specifications,
+        previousValue: oldProduct?.specifications as any ?? undefined,
+        newValue: specifications as any ?? undefined,
       },
     });
 
