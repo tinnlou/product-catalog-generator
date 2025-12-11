@@ -33,8 +33,9 @@ export async function GET() {
     return NextResponse.json({ data, success: true });
   } catch (error) {
     console.error('获取系列失败:', error);
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
     return NextResponse.json(
-      { error: '获取系列失败', success: false },
+      { error: `获取系列失败: ${errorMessage}`, success: false },
       { status: 500 }
     );
   }

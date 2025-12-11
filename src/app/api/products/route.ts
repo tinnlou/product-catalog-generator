@@ -59,8 +59,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ data, success: true });
   } catch (error) {
     console.error('获取产品失败:', error);
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
     return NextResponse.json(
-      { error: '获取产品失败', success: false },
+      { error: `获取产品失败: ${errorMessage}`, success: false },
       { status: 500 }
     );
   }
