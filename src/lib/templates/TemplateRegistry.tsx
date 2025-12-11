@@ -351,9 +351,4 @@ export function registerTemplates(templates: TemplateDefinition[]): void {
   });
 }
 
-// ============================================================================
-// 导出类型
-// ============================================================================
-
-export type { TemplateProps, TemplateMetadata, RegisteredTemplate };
 
