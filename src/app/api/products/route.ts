@@ -48,6 +48,12 @@ export async function GET(request: Request) {
       description: p.description,
       seriesId: p.seriesId,
       seriesName: p.series.name,
+      seriesCode: p.series.code,
+      series: {
+        id: p.series.id,
+        name: p.series.name,
+        code: p.series.code,
+      },
       specifications: p.specifications,
       status: p.status,
       version: p.version,

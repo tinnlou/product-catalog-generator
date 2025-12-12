@@ -61,7 +61,19 @@ export default function GeneratePDFPage() {
         const productsJson = await productsRes.json();
         
         if (seriesJson.success) setSeriesList(seriesJson.data);
-        if (productsJson.success) setProductList(productsJson.data);
+        if (productsJson.success) {
+          // 确保产品有series对象，兼容旧数据
+          const normalized = (productsJson.data || []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            series: p.series || {
+              name: p.seriesName || '未命名系列',
+              code: p.seriesCode || '',
+            },
+          }));
+          setProductList(normalized);
+        }
       } catch (err) {
         console.error('获取数据失败:', err);
       } finally {
