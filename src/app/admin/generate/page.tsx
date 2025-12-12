@@ -1,26 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { PDFDownloadLinkProps } from '@react-pdf/renderer';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2, Download, Eye, Check, Layers } from 'lucide-react';
-
-// 动态导入PDF组件
-const PDFDownloadLink = dynamic<PDFDownloadLinkProps>(
-  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
-  { ssr: false }
-);
-
-const BlobProvider = dynamic(
-  () => import('@react-pdf/renderer').then(mod => mod.BlobProvider),
-  { ssr: false }
-);
-
-const ProductCatalogPDF = dynamic(
-  () => import('@/components/pdf/ProductCatalogPDF'),
-  { ssr: false }
-);
 
 interface Series {
   id: string;
@@ -44,10 +26,12 @@ export default function GeneratePDFPage() {
   const [selectedType, setSelectedType] = useState<'series' | 'products'>('series');
   const [selectedSeriesId, setSelectedSeriesId] = useState<string>('');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [pdfData, setPdfData] = useState<any[] | null>(null);
+  const [pdfData, setPdfData] = useState<any[] | null>(null); // 保留调试用
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState('');
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [pdfUrl, setPdfUrl] = useState<string>('');
+  const revokeRef = useRef<string>('');
 
   // 获取系列和产品列表
   useEffect(() => {
@@ -89,6 +73,7 @@ export default function GeneratePDFPage() {
     setError('');
     setGenerating(true);
     setPdfData(null);
+    setPdfUrl('');
 
     try {
       const body: any = { type: selectedType };
@@ -103,67 +88,28 @@ export default function GeneratePDFPage() {
         return;
       }
 
-      const res = await fetch('/api/pdf/generate', {
+      // 请求服务器端渲染好的 PDF，避免前端 react-pdf 渲染异常
+      const renderRes = await fetch('/api/pdf/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        setError(`生成失败：${text || res.status}`);
+      if (!renderRes.ok) {
+        const text = await renderRes.text();
+        setError(`生成失败：${text || renderRes.status}`);
         return;
       }
 
-      const json = await res.json();
+      const blob = await renderRes.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      // 释放旧的 url
+      if (revokeRef.current) URL.revokeObjectURL(revokeRef.current);
+      revokeRef.current = objectUrl;
 
-      if (!json.success) {
-        setError(json.error || '生成失败');
-        return;
-      }
-
-      const raw = Array.isArray(json.data) ? json.data : [];
-      const safeProducts = raw
-        .map((p: any) => {
-          if (!p || !p.series) return null;
-          return {
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            description: p.description || '',
-            specifications: p.specifications || {},
-            circuitDiagrams: p.circuitDiagrams || {},
-            pinDefinitions: p.pinDefinitions || {},
-            status: p.status || 'DRAFT',
-            series: {
-              id: p.series.id,
-              name: p.series.name || '未命名系列',
-              code: p.series.code || '',
-              templateId: p.series.templateId || 'layout-m8-standard',
-              schemaDefinition: p.series.schemaDefinition || { fields: [], groups: [] },
-              layoutConfig: p.series.layoutConfig || {},
-            },
-            partNumbers: Array.isArray(p.partNumbers) ? p.partNumbers : [],
-            assets: Array.isArray(p.assets) ? p.assets : [],
-          };
-        })
-        .filter(Boolean);
-
-      if (safeProducts.length === 0) {
-        setError('生成失败：返回的数据为空或缺少系列信息');
-        setShowPreview(false);
-        return;
-      }
-
-      // 调试信息便于定位空白问题
-      setDebugInfo(
-        `生成成功：${safeProducts.length} 个产品；示例：${safeProducts[0]?.name || ''} / 系列 ${safeProducts[0]?.series?.name || ''}`
-      );
-
-      // 深拷贝，避免 Proxy/不可序列化对象导致 react-pdf 内部引用为 null
-      const cloned = JSON.parse(JSON.stringify(safeProducts));
-      setPdfData(cloned as any[]);
+      setPdfUrl(objectUrl);
       setShowPreview(true);
+      setDebugInfo(`生成成功，大小 ${(blob.size / 1024).toFixed(1)} KB`);
     } catch (err) {
       setError('生成失败，请重试');
     } finally {
@@ -369,78 +315,33 @@ export default function GeneratePDFPage() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h2 className="font-semibold text-slate-900 mb-4">PDF 预览</h2>
 
-          {!pdfData || !Array.isArray(pdfData) || pdfData.length === 0 ? (
+          {!showPreview || !pdfUrl ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <Eye className="w-12 h-12 mb-4" />
               <p>选择内容并点击生成查看预览</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {/* PDF预览区域：使用 BlobProvider + iframe，避免 react-pdf Viewer 在客户端报 null */}
-              <BlobProvider
-                document={
-                  <ProductCatalogPDF 
-                    products={pdfData} 
-                    title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
-                  />
-                }
-              >
-                {({ url, loading, error: blobError }) => (
-                  <div className="space-y-3">
-                    {loading && (
-                      <div className="flex items-center justify-center py-12 text-slate-500">
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        正在生成预览...
-                      </div>
-                    )}
-                    {blobError && (
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                        预览失败：{blobError.message}
-                      </div>
-                    )}
-                    {url && (
-                      <iframe
-                        key={url}
-                        src={url}
-                        title="PDF Preview"
-                        className="w-full border border-slate-200 rounded-lg bg-white"
-                        style={{ height: '520px' }}
-                      />
-                    )}
-                  </div>
-                )}
-              </BlobProvider>
+              {/* PDF预览区域：直接 iframe 加载后端生成的 PDF */}
+              <div className="space-y-3">
+                <iframe
+                  key={pdfUrl}
+                  src={pdfUrl}
+                  title="PDF Preview"
+                  className="w-full border border-slate-200 rounded-lg bg-white"
+                  style={{ height: '520px' }}
+                />
+              </div>
 
               {/* 下载按钮 */}
-              <PDFDownloadLink
-                key={`download-${pdfData.length}-${pdfData[0]?.id || ''}-${selectedType}`}
-                document={
-                  <ProductCatalogPDF 
-                    products={pdfData} 
-                    title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
-                  />
-                }
-                fileName={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
+              <a
+                href={pdfUrl}
+                download={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
               >
-                {(({ loading }: { loading: boolean }) => (
-                  loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      准备中...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-5 h-5" />
-                      下载 PDF
-                    </>
-                  )
-                )) as unknown as PDFDownloadLinkProps['children']}
-              </PDFDownloadLink>
-
-              <p className="text-sm text-slate-500 text-center">
-                共 {pdfData.length} 个产品
-              </p>
+                <Download className="w-5 h-5" />
+                下载 PDF
+              </a>
             </div>
           )}
         </div>
