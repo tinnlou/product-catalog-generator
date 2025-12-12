@@ -247,7 +247,7 @@ async function handleGenerate(type: 'products' | 'series', seriesId?: string, pr
     );
   }
   const buffer = await generatePdfBuffer(products);
-  return new NextResponse(buffer, {
+  return new NextResponse(buffer as unknown as BodyInit, {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
