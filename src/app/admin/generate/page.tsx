@@ -47,6 +47,7 @@ export default function GeneratePDFPage() {
   const [pdfData, setPdfData] = useState<any[] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   // 获取系列和产品列表
   useEffect(() => {
@@ -154,6 +155,11 @@ export default function GeneratePDFPage() {
         return;
       }
 
+      // 调试信息便于定位空白问题
+      setDebugInfo(
+        `生成成功：${safeProducts.length} 个产品；示例：${safeProducts[0]?.name || ''} / 系列 ${safeProducts[0]?.series?.name || ''}`
+      );
+
       setPdfData(safeProducts as any[]);
       setShowPreview(true);
     } catch (err) {
@@ -200,6 +206,9 @@ export default function GeneratePDFPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">PDF 生成</h1>
           <p className="text-slate-600">选择产品或系列，生成产品目录PDF</p>
+          {debugInfo && (
+            <p className="text-xs text-green-600 mt-1">调试：{debugInfo}</p>
+          )}
         </div>
       </div>
 
