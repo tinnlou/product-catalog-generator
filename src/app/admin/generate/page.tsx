@@ -7,13 +7,13 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2, Download, Eye, Check, Layers } from 'lucide-react';
 
 // 动态导入PDF组件
-const PDFViewer = dynamic(
-  () => import('@react-pdf/renderer').then(mod => mod.PDFViewer),
+const PDFDownloadLink = dynamic<PDFDownloadLinkProps>(
+  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
   { ssr: false }
 );
 
-const PDFDownloadLink = dynamic<PDFDownloadLinkProps>(
-  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
+const BlobProvider = dynamic(
+  () => import('@react-pdf/renderer').then(mod => mod.BlobProvider),
   { ssr: false }
 );
 
@@ -376,23 +376,42 @@ export default function GeneratePDFPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* PDF预览区域 */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-100" style={{ height: '500px' }}>
-                <PDFViewer
-                  key={`viewer-${pdfData.length}-${pdfData[0]?.id || ''}-${selectedType}`}
-                  width="100%"
-                  height="100%"
-                  showToolbar={false}
-                >
+              {/* PDF预览区域：使用 BlobProvider + iframe，避免 react-pdf Viewer 在客户端报 null */}
+              <BlobProvider
+                document={
                   <ProductCatalogPDF 
                     products={pdfData} 
                     title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
                   />
-                </PDFViewer>
-              </div>
+                }
+              >
+                {({ url, loading, error: blobError }) => (
+                  <div className="space-y-3">
+                    {loading && (
+                      <div className="flex items-center justify-center py-12 text-slate-500">
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        正在生成预览...
+                      </div>
+                    )}
+                    {blobError && (
+                      <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                        预览失败：{blobError.message}
+                      </div>
+                    )}
+                    {url && (
+                      <iframe
+                        key={url}
+                        src={url}
+                        title="PDF Preview"
+                        className="w-full border border-slate-200 rounded-lg bg-white"
+                        style={{ height: '520px' }}
+                      />
+                    )}
+                  </div>
+                )}
+              </BlobProvider>
 
               {/* 下载按钮 */}
-              {/* PDFDownloadLink 运行时支持 render prop，这里做类型断言以兼容 TS 定义 */}
               <PDFDownloadLink
                 key={`download-${pdfData.length}-${pdfData[0]?.id || ''}-${selectedType}`}
                 document={
