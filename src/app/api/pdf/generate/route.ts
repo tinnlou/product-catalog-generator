@@ -7,7 +7,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { productIds, seriesId, type = 'products' } = body;
 
-    let products = [];
+    type ProductsResult = Awaited<ReturnType<typeof prisma.product.findMany>>;
+    let products: ProductsResult = [];
 
     if (type === 'series' && seriesId) {
       // 获取整个系列的产品
