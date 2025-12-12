@@ -102,8 +102,8 @@ export async function POST(request: Request) {
         asset: pa.asset
           ? {
               id: pa.asset.id,
-              type: pa.asset.type,
-              url: pa.asset.url,
+              fileType: pa.asset.fileType,
+              fileUrl: pa.asset.fileUrl,
               metadata: pa.asset.metadata,
               altText: pa.asset.altText,
               description: pa.asset.description,
