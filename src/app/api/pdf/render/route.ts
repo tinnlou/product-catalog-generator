@@ -1,3 +1,4 @@
+import React from 'react';
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
@@ -122,17 +123,16 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
   };
 }>;
 
-function PdfDoc({ products, title }: { products: ProductWithRelations[]; title: string }) {
+function PdfDoc({ products, title }: { products: ProductWithRelations[]; title: string }): JSX.Element {
   // 按系列分组
-  const grouped = products.reduce<Record<string, { series: ProductWithRelations['series']; items: ProductWithRelations[] }>>(
-    (acc, p) => {
-      const code = p.series.code;
-      if (!acc[code]) acc[code] = { series: p.series, items: [] };
-      acc[code].items.push(p);
-      return acc;
-    },
-    {}
-  );
+  const grouped = products.reduce<
+    Record<string, { series: ProductWithRelations['series']; items: ProductWithRelations[] }>
+  >((acc, p) => {
+    const code = p.series.code;
+    if (!acc[code]) acc[code] = { series: p.series, items: [] };
+    acc[code].items.push(p);
+    return acc;
+  }, {});
 
   const groups = Object.values(grouped);
 
@@ -157,16 +157,19 @@ function PdfDoc({ products, title }: { products: ProductWithRelations[]; title: 
               {p.description && <Text style={styles.productDesc}>{p.description}</Text>}
 
               {/* 规格参数 */}
-              {p.specifications && Object.keys(p.specifications as Record<string, unknown>).length > 0 && (
-                <View style={styles.specsTable}>
-                  {Object.entries(p.specifications as Record<string, unknown>).map(([k, v]) => (
-                    <View key={k} style={styles.specsRow}>
-                      <Text style={styles.specsLabel}>{k}</Text>
-                      <Text style={styles.specsValue}>{formatValue(v)}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+              {p.specifications &&
+                Object.keys(p.specifications as Record<string, unknown>).length > 0 && (
+                  <View style={styles.specsTable}>
+                    {Object.entries(p.specifications as Record<string, unknown>).map(
+                      ([k, v]) => (
+                        <View key={k} style={styles.specsRow}>
+                          <Text style={styles.specsLabel}>{k}</Text>
+                          <Text style={styles.specsValue}>{formatValue(v)}</Text>
+                        </View>
+                      )
+                    )}
+                  </View>
+                )}
 
               {/* 型号列表 */}
               {p.partNumbers.length > 0 && (
@@ -199,7 +202,6 @@ function formatValue(v: unknown): string {
   return String(v);
 }
 
-// POST /api/pdf/render - 服务端生成PDF并返回二进制
 async function generatePdfBuffer(products: ProductWithRelations[]) {
   const safeProducts = JSON.parse(JSON.stringify(products)) as ProductWithRelations[];
   const title =
@@ -241,7 +243,7 @@ async function handleGenerate(type: 'products' | 'series', seriesId?: string, pr
   if (!products.length) {
     return NextResponse.json(
       { success: false, error: '没有找到要生成的产品' },
-      { status: 400 }
+      { status: 400 },
     );
   }
   const buffer = await generatePdfBuffer(products);
@@ -271,7 +273,7 @@ export async function GET(request: Request) {
     console.error('服务端生成PDF失败(GET):', error);
     return NextResponse.json(
       { success: false, error: '服务端生成PDF失败' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -289,7 +291,7 @@ export async function POST(request: Request) {
     console.error('服务端生成PDF失败:', error);
     return NextResponse.json(
       { success: false, error: '服务端生成PDF失败' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
