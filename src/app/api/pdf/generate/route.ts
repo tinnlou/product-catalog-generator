@@ -23,7 +23,6 @@ export async function POST(request: Request) {
             where: { isActive: true },
           },
           assets: {
-            where: { isActive: true },
           },
         },
         orderBy: { createdAt: 'asc' },
@@ -41,7 +40,6 @@ export async function POST(request: Request) {
             where: { isActive: true },
           },
           assets: {
-            where: { isActive: true },
           },
         },
       });
