@@ -99,8 +99,16 @@ export default function GeneratePDFPage() {
       const json = await res.json();
 
       if (json.success) {
-        setPdfData(json.data);
-        setShowPreview(true);
+        const data = Array.isArray(json.data)
+          ? json.data.filter((p: any) => p && p.series) // 过滤掉缺少系列信息的记录
+          : [];
+        if (data.length === 0) {
+          setError('生成失败：返回的数据为空或缺少系列信息');
+          setShowPreview(false);
+        } else {
+          setPdfData(data);
+          setShowPreview(true);
+        }
       } else {
         setError(json.error || '生成失败');
       }
@@ -306,7 +314,7 @@ export default function GeneratePDFPage() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h2 className="font-semibold text-slate-900 mb-4">PDF 预览</h2>
 
-          {!pdfData ? (
+          {!pdfData || !Array.isArray(pdfData) || pdfData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <Eye className="w-12 h-12 mb-4" />
               <p>选择内容并点击生成查看预览</p>
