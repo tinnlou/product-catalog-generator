@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { PDFDownloadLinkProps } from '@react-pdf/renderer';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2, Download, Eye, Check, Layers } from 'lucide-react';
@@ -11,7 +12,7 @@ const PDFViewer = dynamic(
   { ssr: false }
 );
 
-const PDFDownloadLink = dynamic(
+const PDFDownloadLink = dynamic<PDFDownloadLinkProps>(
   () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
   { ssr: false }
 );
