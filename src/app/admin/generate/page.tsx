@@ -160,7 +160,9 @@ export default function GeneratePDFPage() {
         `生成成功：${safeProducts.length} 个产品；示例：${safeProducts[0]?.name || ''} / 系列 ${safeProducts[0]?.series?.name || ''}`
       );
 
-      setPdfData(safeProducts as any[]);
+      // 深拷贝，避免 Proxy/不可序列化对象导致 react-pdf 内部引用为 null
+      const cloned = JSON.parse(JSON.stringify(safeProducts));
+      setPdfData(cloned as any[]);
       setShowPreview(true);
     } catch (err) {
       setError('生成失败，请重试');
@@ -376,7 +378,12 @@ export default function GeneratePDFPage() {
             <div className="space-y-4">
               {/* PDF预览区域 */}
               <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-100" style={{ height: '500px' }}>
-                <PDFViewer width="100%" height="100%" showToolbar={false}>
+                <PDFViewer
+                  key={`viewer-${pdfData.length}-${pdfData[0]?.id || ''}-${selectedType}`}
+                  width="100%"
+                  height="100%"
+                  showToolbar={false}
+                >
                   <ProductCatalogPDF 
                     products={pdfData} 
                     title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
@@ -387,6 +394,7 @@ export default function GeneratePDFPage() {
               {/* 下载按钮 */}
               {/* PDFDownloadLink 运行时支持 render prop，这里做类型断言以兼容 TS 定义 */}
               <PDFDownloadLink
+                key={`download-${pdfData.length}-${pdfData[0]?.id || ''}-${selectedType}`}
                 document={
                   <ProductCatalogPDF 
                     products={pdfData} 
