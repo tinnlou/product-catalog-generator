@@ -108,22 +108,54 @@ export default function GeneratePDFPage() {
         body: JSON.stringify(body),
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        setError(`生成失败：${text || res.status}`);
+        return;
+      }
+
       const json = await res.json();
 
-      if (json.success) {
-        const data = Array.isArray(json.data)
-          ? json.data.filter((p: any) => p && p.series) // 过滤掉缺少系列信息的记录
-          : [];
-        if (data.length === 0) {
-          setError('生成失败：返回的数据为空或缺少系列信息');
-          setShowPreview(false);
-        } else {
-          setPdfData(data);
-          setShowPreview(true);
-        }
-      } else {
+      if (!json.success) {
         setError(json.error || '生成失败');
+        return;
       }
+
+      const raw = Array.isArray(json.data) ? json.data : [];
+      const safeProducts = raw
+        .map((p: any) => {
+          if (!p || !p.series) return null;
+          return {
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            description: p.description || '',
+            specifications: p.specifications || {},
+            circuitDiagrams: p.circuitDiagrams || {},
+            pinDefinitions: p.pinDefinitions || {},
+            status: p.status || 'DRAFT',
+            series: {
+              id: p.series.id,
+              name: p.series.name || '未命名系列',
+              code: p.series.code || '',
+              templateId: p.series.templateId || 'layout-m8-standard',
+              schemaDefinition: p.series.schemaDefinition || { fields: [], groups: [] },
+              layoutConfig: p.series.layoutConfig || {},
+            },
+            partNumbers: Array.isArray(p.partNumbers) ? p.partNumbers : [],
+            assets: Array.isArray(p.assets) ? p.assets : [],
+          };
+        })
+        .filter(Boolean);
+
+      if (safeProducts.length === 0) {
+        setError('生成失败：返回的数据为空或缺少系列信息');
+        setShowPreview(false);
+        return;
+      }
+
+      setPdfData(safeProducts as any[]);
+      setShowPreview(true);
     } catch (err) {
       setError('生成失败，请重试');
     } finally {
@@ -338,7 +370,7 @@ export default function GeneratePDFPage() {
                 <PDFViewer width="100%" height="100%" showToolbar={false}>
                   <ProductCatalogPDF 
                     products={pdfData} 
-                    title={selectedSeries?.name || '产品目录'}
+                    title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
                   />
                 </PDFViewer>
               </div>
@@ -349,7 +381,7 @@ export default function GeneratePDFPage() {
                 document={
                   <ProductCatalogPDF 
                     products={pdfData} 
-                    title={selectedSeries?.name || '产品目录'}
+                    title={selectedType === 'series' ? (selectedSeries?.name || '产品目录') : '产品目录'}
                   />
                 }
                 fileName={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
