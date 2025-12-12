@@ -289,7 +289,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('服务端生成PDF失败(GET):', error);
     return NextResponse.json(
-      { success: false, error: '服务端生成PDF失败' },
+      { success: false, error: `服务端生成PDF失败: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 },
     );
   }
@@ -305,9 +305,9 @@ export async function POST(request: Request) {
     };
     return await handleGenerate(type, seriesId, productIds);
   } catch (error) {
-    console.error('服务端生成PDF失败:', error);
+    console.error('服务端生成PDF失败(POST):', error);
     return NextResponse.json(
-      { success: false, error: '服务端生成PDF失败' },
+      { success: false, error: `服务端生成PDF失败: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 },
     );
   }
