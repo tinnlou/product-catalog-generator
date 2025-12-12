@@ -9,18 +9,35 @@ import {
   View,
   StyleSheet,
   renderToBuffer,
+  Font,
 } from '@react-pdf/renderer';
 
 // 强制动态，确保在 Vercel 运行时不被静态化
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// 注册中文字体（请将字体文件放在 public/fonts/ 下）
+try {
+  Font.register({
+    family: 'NotoSansSC',
+    src: '/fonts/NotoSansSC-Regular.ttf',
+    fontWeight: 'normal',
+  });
+  Font.register({
+    family: 'NotoSansSC',
+    src: '/fonts/NotoSansSC-Bold.ttf',
+    fontWeight: 'bold',
+  });
+} catch (err) {
+  console.warn('字体注册失败，继续使用默认字体。请确保 public/fonts/NotoSansSC-*.ttf 已存在。', err);
+}
+
 // 基础样式（简化版）
 const styles = StyleSheet.create({
   page: {
     padding: 32,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'NotoSansSC',
     color: '#111827',
   },
   header: {
