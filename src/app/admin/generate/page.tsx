@@ -324,17 +324,8 @@ export default function GeneratePDFPage() {
               </div>
 
               {/* 下载按钮 */}
-              <PDFDownloadLink
-                document={
-                  <ProductCatalogPDF 
-                    products={pdfData} 
-                    title={selectedSeries?.name || '产品目录'}
-                  />
-                }
-                fileName={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
-              >
-                {({ loading }) => 
+              {(() => {
+                const renderDownload: PDFDownloadLinkProps['children'] = ({ loading }) =>
                   loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -345,9 +336,23 @@ export default function GeneratePDFPage() {
                       <Download className="w-5 h-5" />
                       下载 PDF
                     </>
-                  )
-                }
-              </PDFDownloadLink>
+                  );
+
+                return (
+                  <PDFDownloadLink
+                    document={
+                      <ProductCatalogPDF 
+                        products={pdfData} 
+                        title={selectedSeries?.name || '产品目录'}
+                      />
+                    }
+                    fileName={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    {renderDownload}
+                  </PDFDownloadLink>
+                );
+              })()}
 
               <p className="text-sm text-slate-500 text-center">
                 共 {pdfData.length} 个产品
