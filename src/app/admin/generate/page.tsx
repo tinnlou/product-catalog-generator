@@ -335,7 +335,7 @@ export default function GeneratePDFPage() {
                 fileName={`catalog-${selectedSeries?.code || 'products'}-${new Date().toISOString().slice(0, 10)}.pdf`}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
               >
-                {(({ loading }) => (
+                {(({ loading }: { loading: boolean }) => (
                   loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
