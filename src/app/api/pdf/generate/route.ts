@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 // POST /api/pdf/generate - 获取产品数据用于PDF生成
@@ -7,8 +8,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { productIds, seriesId, type = 'products' } = body;
 
-    type ProductsResult = Awaited<ReturnType<typeof prisma.product.findMany>>;
-    let products: ProductsResult = [];
+    type ProductWithRelations = Prisma.ProductGetPayload<{
+      include: {
+        series: true;
+        partNumbers: true;
+        assets: true;
+      };
+    }>;
+
+    let products: ProductWithRelations[] = [];
 
     if (type === 'series' && seriesId) {
       // 获取整个系列的产品
@@ -22,8 +30,7 @@ export async function POST(request: Request) {
           partNumbers: {
             where: { isActive: true },
           },
-          assets: {
-          },
+          assets: true,
         },
         orderBy: { createdAt: 'asc' },
       });
@@ -39,8 +46,7 @@ export async function POST(request: Request) {
           partNumbers: {
             where: { isActive: true },
           },
-          assets: {
-          },
+          assets: true,
         },
       });
     }
