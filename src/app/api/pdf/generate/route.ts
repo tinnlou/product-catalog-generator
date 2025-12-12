@@ -12,7 +12,11 @@ export async function POST(request: Request) {
       include: {
         series: true;
         partNumbers: true;
-        assets: true;
+        assets: {
+          include: {
+            asset: true;
+          };
+        };
       };
     }>;
 
@@ -30,7 +34,11 @@ export async function POST(request: Request) {
           partNumbers: {
             where: { isActive: true },
           },
-          assets: true,
+        assets: {
+          include: {
+            asset: true,
+          },
+        },
         },
         orderBy: { createdAt: 'asc' },
       });
@@ -46,7 +54,11 @@ export async function POST(request: Request) {
           partNumbers: {
             where: { isActive: true },
           },
-          assets: true,
+        assets: {
+          include: {
+            asset: true,
+          },
+        },
         },
       });
     }
@@ -82,11 +94,22 @@ export async function POST(request: Request) {
         variantConfig: pn.variantConfig,
         category: pn.category,
       })),
-      assets: p.assets.map(a => ({
-        id: a.id,
-        type: a.type,
-        url: a.url,
-        metadata: a.metadata,
+      assets: p.assets.map(pa => ({
+        id: pa.id,
+        usage: pa.usage,
+        sortOrder: pa.sortOrder,
+        assetId: pa.assetId,
+        asset: pa.asset
+          ? {
+              id: pa.asset.id,
+              type: pa.asset.type,
+              url: pa.asset.url,
+              metadata: pa.asset.metadata,
+              altText: pa.asset.altText,
+              description: pa.asset.description,
+              tags: pa.asset.tags,
+            }
+          : null,
       })),
     }));
 
